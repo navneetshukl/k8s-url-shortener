@@ -81,14 +81,31 @@ func Load() (*Config, error) {
 }
 
 func getEnv(key, defaultValue string) string {
+	// 1. Check environment variable (from envFrom)
 	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	// 2. Check ConfigMap file mount (/etc/config/)
+	if value := readFile("/etc/config/" + key); value != "" {
+		return value
+	}
+	// 3. Check Secret file mount (/etc/secrets/)
+	if value := readFile("/etc/secrets/" + key); value != "" {
 		return value
 	}
 	return defaultValue
 }
 
+func readFile(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
 func getIntEnv(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
+	if value := getEnv(key, ""); value != "" {
 		if intVal, err := strconv.Atoi(value); err == nil {
 			return intVal
 		}
@@ -97,7 +114,7 @@ func getIntEnv(key string, defaultValue int) int {
 }
 
 func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
+	if value := getEnv(key, ""); value != "" {
 		if duration, err := time.ParseDuration(value); err == nil {
 			return duration
 		}
