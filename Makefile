@@ -22,10 +22,10 @@ logs:
 	kubectl logs -l app=url-shortener-pod -f
 
 logs-postgres:
-	kubectl logs -l app=postgres -f
+	kubectl logs -l app=postgres-pod -f
 
 logs-redis:
-	kubectl logs -l app=redis -f
+	kubectl logs -l app=redis-pod -f
 
 status:
 	kubectl get pods -l app=url-shortener-pod

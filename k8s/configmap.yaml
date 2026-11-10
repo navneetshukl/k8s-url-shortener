@@ -9,7 +9,7 @@ data:
   # App config
   POSTGRES_HOST: "postgres-svc"
   REDIS_HOST: "redis-svc"
-  BASE_URL: "http://url-shortener"
+  BASE_URL: "http://url-shortener-svc"
   # Postgres config
   POSTGRES_USER: "postgres"
   POSTGRES_DB: "urlshortener"
