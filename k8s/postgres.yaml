@@ -1,3 +1,68 @@
+# =============================================================================
+# OLD CODE - COMMENTED OUT (Deployment with emptyDir - not persistent)
+# =============================================================================
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: postgres-svc
+#   namespace: default
+#   labels:
+#     app: postgres
+# spec:
+#   type: ClusterIP
+#   ports:
+#     - port: 5432
+#       targetPort: 5432
+#   selector:
+#     app: postgres-pod
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: postgres
+#   namespace: default
+#   labels:
+#     app: postgres
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: postgres-pod
+#   template:
+#     metadata:
+#       labels:
+#         app: postgres-pod
+#     spec:
+#       containers:
+#         - name: postgres
+#           image: postgres:16-alpine
+#           imagePullPolicy: IfNotPresent
+#           ports:
+#             - containerPort: 5432
+#           envFrom:
+#             - configMapRef:
+#                 name: url-shortener-config
+#             - secretRef:
+#                 name: url-shortener-secrets
+#           volumeMounts:
+#             - name: postgres-data
+#               mountPath: /var/lib/postgresql/data
+#           resources:
+#             requests:
+#               cpu: "100m"
+#               memory: "128Mi"
+#             limits:
+#               cpu: "500m"
+#               memory: "512Mi"
+#       volumes:
+#         - name: postgres-data
+#           emptyDir: {}
+#
+# =============================================================================
+# NEW CODE - PostgreSQL StatefulSet with Headless Service and PVC
+# =============================================================================
+# Headless Service for PostgreSQL StatefulSet
+# Provides stable network identities for each pod (postgres-0, postgres-1, etc.)
 apiVersion: v1
 kind: Service
 metadata:
@@ -6,22 +71,26 @@ metadata:
   labels:
     app: postgres
 spec:
-  type: ClusterIP
+  clusterIP: None  # Headless service - no cluster IP assigned
   ports:
     - port: 5432
       targetPort: 5432
+      name: postgres
   selector:
-    app: postgres-pod
+    app: postgres
 ---
+# PostgreSQL StatefulSet with Persistent Volume Claims
+# Ensures stable pod identities, ordered deployment/scaling, and persistent storage
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: postgres
   namespace: default
   labels:
     app: postgres
 spec:
-  replicas: 1
+  serviceName: postgres-svc  # Must match the headless service name
+  replicas: 2
   selector:
     matchLabels:
       app: postgres-pod
@@ -36,6 +105,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5432
+              name: postgres
           envFrom:
             - configMapRef:
                 name: url-shortener-config
@@ -51,6 +121,38 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
-      volumes:
-        - name: postgres-data
-          emptyDir: {}
+          # Liveness probe to detect unhealthy containers
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - urlshortener
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          # Readiness probe to detect when pod is ready to serve traffic
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - urlshortener
+            initialDelaySeconds: 5
+            periodSeconds: 5
+  # VolumeClaimTemplate creates a PVC for each pod automatically
+  # This ensures each pod gets its own persistent storage
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+        labels:
+          app: postgres-pod
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: ""  # Use default storage class
+        resources:
+          requests:
+            storage: 1Gi

@@ -1,0 +1,60 @@
+1. Load image in minikube node
+minikube image load url-shortener:latest
+
+2. Describe pod status
+kubectl describe pod -l app=url-shortener-pod
+
+3. Logs inside pod
+kubectl logs -l app=url-shortener-pod
+
+4. Delete image from minikube
+minikube image rm url-shortener:latest
+
+5. Testing curl command
+
+# Create short URL (via Service inside cluster)
+curl -X POST http://url-shortener-svc/api/v1/urls \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/very/long/url"}'
+
+# Create another short URL
+curl -X POST http://url-shortener-svc/api/v1/urls \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://another-example.com/path"}'
+
+# Get stats for a short code (replace <shortCode> with actual code from response)
+curl -X GET http://url-shortener-svc/api/v1/urls/<shortCode>/stats
+
+# Test redirect (replace <shortCode> with actual code)
+curl -X GET http://url-shortener-svc/<shortCode>
+
+# Test validation error (missing URL)
+curl -X POST http://url-shortener-svc/api/v1/urls \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# Health checks
+curl -X GET http://url-shortener-svc/healthz
+curl -X GET http://url-shortener-svc/readyz
+
+# From outside cluster (using minikube service or port-forward)
+# minikube service url-shortener-svc --url
+# Then use the returned URL for testing
+
+6. Enter inside the pod
+kubectl exec -it $(kubectl get pod -l app=url-shortener-pod -o jsonpath='{.items[0].metadata.name}') -- /bin/sh
+
+7. Logs for specific container inside pod
+kubectl logs $(kubectl get pod -l app=url-shortener-pod -o jsonpath='{.items[0].metadata.name}') -c url-shortener
+
+8. Temporary curl pod for debugging
+kubectl run curl-test --image=curlimages/curl --rm -it -- sh
+
+# Inside curl-test pod, test the service:
+# curl -X POST http://url-shortener-svc/api/v1/urls -H "Content-Type: application/json" -d '{"url": "https://example.com"}'
+
+9. Port-forward for local testing
+kubectl port-forward svc/url-shortener-svc 8080:80
+
+# Then test locally:
+# curl -X POST http://localhost:8080/api/v1/urls -H "Content-Type: application/json" -d '{"url": "https://example.com"}'
